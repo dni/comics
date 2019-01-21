@@ -34,11 +34,13 @@ def getData():
 def renderIndex(data):
     page = dominate.document(title='dni\'s comic collection index page!')
     with page.add(div(id='content')):
+        total = countTotal(data)
+        h2('Total: %s' % total)
         for row in data:
             key = row[0]
             subdata = row[1]
             title = subdata[0][0]
-            h1(a(title, href='%s.html' % key))
+            h3(a(title, href='%s.html' % key))
             count = countEntries(subdata)
             p("Gesamt: %s" % count)
 
@@ -68,6 +70,14 @@ def renderDetail(data):
     file.write(page.render())
     file.close()
 
+
+def countTotal(data):
+    total = 0
+    for subdata in data:
+        total += countEntries(subdata)
+    return total
+
+
 def countEntries(subdata):
     count = 0
     for row in subdata:
@@ -77,7 +87,6 @@ def countEntries(subdata):
                 first = False
             else:
                 if(col):
-                    print("count: %s" % col)
                     count+=1
     return count
 
