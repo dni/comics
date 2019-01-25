@@ -1,60 +1,89 @@
-from os import walk
+import os
 import csv
-import glob
 import dominate
 from dominate.tags import *
 
-data = []
+alldata = {}
+
 
 def main():
-    data = getData()
-    for item in data:
-        renderDetail(item)
-        print("rendering %s.html done" % item[0])
-    renderIndex(data)
-    print("rendering index.html done")
+    getData("./data")
+    for dir in alldata:
+        createDistDir(dir)
+        renderIndex(dir, alldata[dir])
+        for subdata in alldata[dir]:
+            if not (isinstance(subdata, basestring)):
+                renderDetail(dir, subdata)
 
-# get csv data
-def getData():
-    data = []
-    f = glob.glob('./data/*.csv')
-    for file in f:
-        with open(file) as csvfile:
-            reader = csv.reader(csvfile)
-            i=0
-            subdata = []
-            for row in reader:
-                subdata.append(row)
-        key = file[7:-4]
-        data.append((key, subdata))
-    return data
+# data
+def getData(dir):
+    for dirname, dirnames, filenames in os.walk('./data'):
+        alldata[dirname] = []
+        for subdirname in dirnames:
+            alldata[dirname].append(subdirname)
+        for filename in filenames:
+            alldata[dirname].append(getCsvData(os.path.join(dirname, filename)))
 
+def getCsvData(file):
+    with open(file) as csvfile:
+        reader = csv.reader(csvfile)
+        i=0
+        subdata = []
+        for row in reader:
+            subdata.append(row)
+    key = file[7:-4]
+    return (key, subdata)
 
-# render index
-def renderIndex(data):
-    page = dominate.document(title='dni\'s comic collection index page!')
-    with page.add(div(id='content')):
-        total = countTotal(data)
-        h2('Total: %s' % total)
-        for row in data:
-            key = row[0]
-            subdata = row[1]
-            title = subdata[0][0]
-            h3(a(title, href='%s.html' % key))
-            count = countEntries(subdata)
-            p("Gesamt: %s" % count)
-
-    file = open("dist/index.html","w")
-    file.write(page.render())
+# create
+def createPage(page, key):
+    filename = os.path.join("./dist/", "%s.html" % key)
+    content = page.render()
+    file = open(filename,"w", encoding='utf8')
+    file.write(content)
     file.close()
+    print("rendering %s done" % filename)
 
-def renderDetail(data):
+def createDistDir(dir):
+    dir = dir.replace("data", "dist")
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+        print("created dir: %s" % dir)
+
+# render
+def renderIndex(dir, data):
+    page = dominate.document(title='dni\'s comic collection index page! %s' % dir)
+    with page.add(div(id='content')):
+        if (dir == "./data"):
+            total = countTotal()
+            h2('Total: %s' % total)
+        for row in data:
+            if (isinstance(row, basestring)):
+                # its a dir
+                title = "%s/" % row
+                href = '%s/index.html' % row
+            else:
+                split = row[0].split("/")
+                href = '%s.html' % split.pop()
+                title = row[1][0][0]
+
+            h3(a(title, href=href))
+            count = countEntries(row[1])
+            if (count > 0):
+                p("Gesamt: %s" % count)
+
+    if(dir == "./data"):
+        key = "index"
+    else:
+        key = "%s/index" % dir[7:]
+    createPage(page, key)
+
+def renderDetail(dir, data):
     key = data[0]
     subdata = data[1]
     title = subdata[0][0]
     page = dominate.document(title='dni\'s comics - %s' % title)
     with page.head:
-        link(rel='stylesheet', href='detail.css')
+        link(rel='stylesheet', href='http://d261tqllhzwogc.cloudfront.net/comics/detail.css')
     with page.add(div(id='content')):
         h1(title)
         with table().add(tbody()):
@@ -66,32 +95,33 @@ def renderDetail(data):
                         col = ""
                         i = False
                     l.add(td(col))
-    file = open("dist/%s.html" % key,"w")
-    file.write(page.render())
-    file.close()
+    createPage(page, key)
 
 
-def countTotal(data):
+
+# statistics
+def countTotal():
     total = 0
-    for subdata in data:
-        total += countEntries(subdata)
+    for key in alldata:
+        for data in alldata[key]:
+            total += countEntries(data)
     return total
-
 
 def countEntries(subdata):
     count = 0
+    firstRow = True
     for row in subdata:
-        first = True
-        for col in row:
-            if(first):
-                first = False
-            else:
-                if(col):
-                    count+=1
+        if(firstRow):
+            firstRow = False
+        else:
+            firstColumn = True
+            for col in row:
+                if(firstColumn):
+                    firstColumn = False
+                else:
+                    if(col):
+                        count+=1
     return count
 
-
-
-
-
+# execute program
 main()
