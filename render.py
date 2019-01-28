@@ -66,10 +66,12 @@ def renderIndex(dir, data):
                 href = '%s.html' % split.pop()
                 title = row[1][0][0]
 
-            h3(a(title, href=href))
             count = countEntries(row[1])
             if (count > 0):
-                p("Gesamt: %s" % count)
+                title = title + " (%s)" % count
+                # title = "%s (%s)" % title, count # p("Gesamt: %s" % count)
+
+            h3(a(title, href=href))
 
     if(dir == "./data"):
         key = "index"
@@ -96,7 +98,6 @@ def renderDetail(dir, data):
                         i = False
                     l.add(td(col))
     createPage(page, key)
-
 
 
 # statistics
