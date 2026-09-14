@@ -1,6 +1,7 @@
 import { createSignal, For } from 'solid-js'
 import { A } from '@solidjs/router'
 import { importComic } from '../api'
+import ModelSelect from '../components/ModelSelect'
 import type { ImportResult } from '../types'
 
 interface QueueItem {
@@ -16,6 +17,7 @@ let nextId = 0
 export default function Import() {
   const [queue, setQueue] = createSignal<QueueItem[]>([])
   const [isDragging, setIsDragging] = createSignal(false)
+  const [model, setModel] = createSignal<string | null>(null)
 
   function addFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
@@ -32,7 +34,7 @@ export default function Import() {
     for (const item of items) {
       setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: 'uploading' } : i)))
       try {
-        const result = await importComic(item.file)
+        const result = await importComic(item.file, model() ?? undefined)
         setQueue((q) => q.map((i) => (i.id === item.id ? { ...i, status: 'done', result } : i)))
       } catch (err) {
         setQueue((q) =>
@@ -57,6 +59,11 @@ export default function Import() {
       <A href="/">&larr; Back to library</A>
       <h1>Import Comics</h1>
 
+      <label class="model-picker">
+        AI model
+        <ModelSelect value={model()} onChange={setModel} />
+      </label>
+
       <div
         class="dropzone"
         classList={{ dragging: isDragging() }}
@@ -68,18 +75,32 @@ export default function Import() {
         onDrop={handleDrop}
       >
         <p>Drag comic photos here, or</p>
-        <label class="file-picker">
-          Choose files
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => {
-              addFiles(e.currentTarget.files)
-              e.currentTarget.value = ''
-            }}
-          />
-        </label>
+        <div class="file-picker-row">
+          <label class="file-picker">
+            Take photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                addFiles(e.currentTarget.files)
+                e.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label class="file-picker secondary">
+            Choose files
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                addFiles(e.currentTarget.files)
+                e.currentTarget.value = ''
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       <ul class="import-queue">

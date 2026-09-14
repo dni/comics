@@ -86,6 +86,11 @@ export interface AuthStatus {
   has_admin: boolean
 }
 
+export interface ModelsInfo {
+  models: string[]
+  default: string
+}
+
 export interface Me {
   username: string
 }

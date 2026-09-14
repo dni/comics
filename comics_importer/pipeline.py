@@ -51,6 +51,7 @@ def process_one(
     conn: sqlite3.Connection,
     client,
     dry_run: bool,
+    model: str = config.CLAUDE_MODEL,
 ) -> str:
     content_hash = compute_content_hash(src_path)
     existing = db.find_by_hash(conn, content_hash)
@@ -69,7 +70,7 @@ def process_one(
         thumb_tmp = work_path / "thumb.jpg"
 
         process_image_with_imagemagick(src_path, optimized_tmp, thumb_tmp)
-        metadata, raw_json = identify_metadata(thumb_tmp, client)
+        metadata, raw_json = identify_metadata(thumb_tmp, client, model=model)
 
         dest_path = build_library_path(
             metadata.get("series"), metadata.get("issue_number"), metadata.get("year"), library_dir
@@ -128,6 +129,7 @@ def process_and_record(
     conn: sqlite3.Connection,
     client,
     dry_run: bool = False,
+    model: str = config.CLAUDE_MODEL,
 ) -> tuple[str, Exception | None]:
     """Run process_one and, on failure, move the file to import/failed/ and record it.
 
@@ -143,6 +145,7 @@ def process_and_record(
             conn=conn,
             client=client,
             dry_run=dry_run,
+            model=model,
         )
         return result, None
     except (ImageProcessingError, VisionAPIError) as exc:

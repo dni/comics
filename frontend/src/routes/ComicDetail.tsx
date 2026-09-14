@@ -5,6 +5,7 @@ import type { Comic, ComicUpdate } from '../types'
 import CropModal, { type CropSuggestion } from '../components/CropModal'
 import Lightbox from '../components/Lightbox'
 import ConfirmModal from '../components/ConfirmModal'
+import ModelSelect from '../components/ModelSelect'
 
 function suggestionFrom(c: Comic): CropSuggestion | null {
   if (
@@ -82,6 +83,7 @@ export default function ComicDetail() {
 
   const [reclassifying, setReclassifying] = createSignal(false)
   const [reclassifyError, setReclassifyError] = createSignal<string | null>(null)
+  const [reclassifyModel, setReclassifyModel] = createSignal<string | null>(null)
 
   const [confirmingDelete, setConfirmingDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
@@ -152,7 +154,7 @@ export default function ComicDetail() {
     setReclassifying(true)
     setReclassifyError(null)
     try {
-      await reclassifyComic(comicId())
+      await reclassifyComic(comicId(), reclassifyModel() ?? undefined)
       await refetch()
     } catch (err) {
       setReclassifyError(err instanceof Error ? err.message : String(err))
@@ -211,9 +213,21 @@ export default function ComicDetail() {
                 <button type="button" class="secondary" onClick={() => setCropping(true)}>
                   Crop / Rotate
                 </button>
-                <button type="button" class="secondary" onClick={handleReclassify} disabled={reclassifying()}>
-                  {reclassifying() ? 'Reclassifying...' : 'Reclassify with AI'}
-                </button>
+                <div class="reclassify-row">
+                  <ModelSelect
+                    value={reclassifyModel()}
+                    onChange={setReclassifyModel}
+                    disabled={reclassifying()}
+                  />
+                  <button
+                    type="button"
+                    class="secondary"
+                    onClick={handleReclassify}
+                    disabled={reclassifying()}
+                  >
+                    {reclassifying() ? 'Reclassifying...' : 'Reclassify with AI'}
+                  </button>
+                </div>
                 <Show when={reclassifyError()}>
                   <p class="error">{reclassifyError()}</p>
                 </Show>

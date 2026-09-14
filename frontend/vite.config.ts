@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     solid(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Comic Library',

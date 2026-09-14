@@ -2,6 +2,7 @@ import { Route, Router } from '@solidjs/router'
 import { AuthProvider } from './auth/authContext'
 import RequireAuth from './auth/RequireAuth'
 import AppShell from './components/AppShell'
+import UpdatePrompt from './components/UpdatePrompt'
 import Library from './routes/Library'
 import ComicDetail from './routes/ComicDetail'
 import Import from './routes/Import'
@@ -51,6 +52,7 @@ function ProtectedFailedImports() {
 function App() {
   return (
     <AuthProvider>
+      <UpdatePrompt />
       <Router>
         <Route path="/for-sale" component={ForSale} />
         <Route path="/" component={ProtectedLibrary} />

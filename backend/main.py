@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -134,6 +134,11 @@ class AuthStatusOut(BaseModel):
 
 class MeOut(BaseModel):
     username: str
+
+
+class ModelsOut(BaseModel):
+    models: list[str]
+    default: str
 
 
 def _get_or_create_session_secret(db_path: Path) -> str:
@@ -383,6 +388,17 @@ def create_app(
         updated = db.get_comic(conn, comic_id)
         return row_to_out(updated, conn)
 
+    @app.get("/api/models", response_model=ModelsOut, dependencies=[Depends(require_auth)])
+    def list_models():
+        return ModelsOut(models=config.AVAILABLE_MODELS, default=config.CLAUDE_MODEL)
+
+    def resolve_model(model: Optional[str]) -> str:
+        if not model:
+            return config.CLAUDE_MODEL
+        if model not in config.AVAILABLE_MODELS:
+            raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
+        return model
+
     def get_anthropic_client():
         if app.state.anthropic_client is None:
             try:
@@ -397,10 +413,12 @@ def create_app(
         return app.state.anthropic_client
 
     @app.post("/api/import", response_model=ImportResult, dependencies=[Depends(require_auth)])
-    def import_comic(file: UploadFile = File(...), conn=Depends(get_db)):
+    def import_comic(file: UploadFile = File(...), model: Optional[str] = Form(None), conn=Depends(get_db)):
         original_name = Path(file.filename or "upload.jpg").name or "upload.jpg"
         if Path(original_name).suffix.lower() not in config.SUPPORTED_EXTENSIONS:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {original_name}")
+
+        resolved_model = resolve_model(model)
 
         try:
             check_imagemagick_available()
@@ -429,6 +447,7 @@ def create_app(
             conn=conn,
             client=client,
             dry_run=False,
+            model=resolved_model,
         )
 
         if result == "failed":
@@ -462,10 +481,12 @@ def create_app(
         response_model=ImportResult,
         dependencies=[Depends(require_auth)],
     )
-    def retry_failed(comic_id: int, conn=Depends(get_db)):
+    def retry_failed(comic_id: int, model: Optional[str] = None, conn=Depends(get_db)):
         row = db.get_comic(conn, comic_id)
         if row is None or row["status"] != "failed":
             raise HTTPException(status_code=404, detail="Failed import not found")
+
+        resolved_model = resolve_model(model)
 
         src_path = Path(row["original_path"])
         if not src_path.exists():
@@ -487,6 +508,7 @@ def create_app(
             conn=conn,
             client=client,
             dry_run=False,
+            model=resolved_model,
         )
 
         if result == "failed":
@@ -504,12 +526,14 @@ def create_app(
         response_model=ComicOut,
         dependencies=[Depends(require_auth)],
     )
-    def reclassify_comic(comic_id: int, conn=Depends(get_db)):
+    def reclassify_comic(comic_id: int, model: Optional[str] = None, conn=Depends(get_db)):
         row = db.get_comic(conn, comic_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Comic not found")
         if not row["optimized_image_path"] or not Path(row["optimized_image_path"]).exists():
             raise HTTPException(status_code=400, detail="This comic has no image to reclassify")
+
+        resolved_model = resolve_model(model)
 
         try:
             check_imagemagick_available()
@@ -524,7 +548,7 @@ def create_app(
             thumb_path = Path(work_dir) / "thumb.jpg"
             try:
                 make_thumbnail(Path(row["optimized_image_path"]), thumb_path)
-                metadata, raw_json = identify_metadata(thumb_path, client)
+                metadata, raw_json = identify_metadata(thumb_path, client, model=resolved_model)
             except VisionAPIError as exc:
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
 

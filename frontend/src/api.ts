@@ -1,4 +1,13 @@
-import type { AuthStatus, Comic, ComicUpdate, FailedComic, ImportResult, Me, PublicComic } from './types'
+import type {
+  AuthStatus,
+  Comic,
+  ComicUpdate,
+  FailedComic,
+  ImportResult,
+  Me,
+  ModelsInfo,
+  PublicComic,
+} from './types'
 
 class ApiError extends Error {
   status: number
@@ -63,8 +72,13 @@ export function listFailed(): Promise<FailedComic[]> {
   return request<FailedComic[]>('/api/failed')
 }
 
-export function retryFailed(id: number): Promise<ImportResult> {
-  return request<ImportResult>(`/api/failed/${id}/retry`, { method: 'POST' })
+export function retryFailed(id: number, model?: string): Promise<ImportResult> {
+  const qs = model ? `?${new URLSearchParams({ model }).toString()}` : ''
+  return request<ImportResult>(`/api/failed/${id}/retry${qs}`, { method: 'POST' })
+}
+
+export function listModels(): Promise<ModelsInfo> {
+  return request<ModelsInfo>('/api/models')
 }
 
 export function getComic(id: number): Promise<Comic> {
@@ -88,13 +102,15 @@ export function uploadComicImage(id: number, blob: Blob): Promise<Comic> {
   return upload<Comic>(`/api/comics/${id}/image`, formData)
 }
 
-export function reclassifyComic(id: number): Promise<Comic> {
-  return request<Comic>(`/api/comics/${id}/reclassify`, { method: 'POST' })
+export function reclassifyComic(id: number, model?: string): Promise<Comic> {
+  const qs = model ? `?${new URLSearchParams({ model }).toString()}` : ''
+  return request<Comic>(`/api/comics/${id}/reclassify${qs}`, { method: 'POST' })
 }
 
-export function importComic(file: File): Promise<ImportResult> {
+export function importComic(file: File, model?: string): Promise<ImportResult> {
   const formData = new FormData()
   formData.append('file', file)
+  if (model) formData.append('model', model)
   return upload<ImportResult>('/api/import', formData)
 }
 

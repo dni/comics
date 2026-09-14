@@ -1,17 +1,19 @@
 import { createResource, createSignal, For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
 import { listFailed, retryFailed } from '../api'
+import ModelSelect from '../components/ModelSelect'
 import type { ImportResult } from '../types'
 
 export default function FailedImports() {
   const [failed, { refetch }] = createResource(listFailed)
   const [retrying, setRetrying] = createSignal<number | null>(null)
   const [results, setResults] = createSignal<Record<number, ImportResult>>({})
+  const [model, setModel] = createSignal<string | null>(null)
 
   async function handleRetry(id: number) {
     setRetrying(id)
     try {
-      const result = await retryFailed(id)
+      const result = await retryFailed(id, model() ?? undefined)
       setResults((r) => ({ ...r, [id]: result }))
       if (result.status === 'processed') {
         await refetch()
@@ -35,6 +37,10 @@ export default function FailedImports() {
     <div>
       <A href="/">&larr; Back to library</A>
       <h1>Failed Imports</h1>
+      <label class="model-picker">
+        AI model for retries
+        <ModelSelect value={model()} onChange={setModel} />
+      </label>
       <Show when={!failed.loading} fallback={<p>Loading...</p>}>
         <Show when={failed() && failed()!.length > 0} fallback={<p>No failed imports. 🎉</p>}>
           <ul class="failed-list">

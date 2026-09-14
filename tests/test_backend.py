@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
-from comics_importer import db
+from comics_importer import config, db
 from comics_importer.hashing import compute_content_hash
 
 
@@ -128,6 +128,13 @@ class TestBackend(unittest.TestCase):
     def test_get_comic_missing_returns_404(self):
         resp = self.client.get("/api/comics/9999")
         self.assertEqual(resp.status_code, 404)
+
+    def test_list_models(self):
+        resp = self.client.get("/api/models")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIn(config.CLAUDE_MODEL, body["models"])
+        self.assertEqual(body["default"], config.CLAUDE_MODEL)
 
     def test_library_image_served(self):
         image_url = self.client.get(f"/api/comics/{self.comic_id}").json()["image_url"]
@@ -274,6 +281,41 @@ class TestBackend(unittest.TestCase):
     @patch("backend.main.check_imagemagick_available", lambda: None)
     @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
     @patch("backend.main.identify_metadata")
+    def test_reclassify_passes_selected_model(self, mock_identify):
+        mock_identify.return_value = (
+            {
+                "series": "Goofy",
+                "issue_number": "1",
+                "year": 1990,
+                "publisher": None,
+                "language": None,
+                "condition_grade": None,
+                "numeric_grade": None,
+                "confidence": "high",
+                "notes": None,
+                "rotation_degrees": 0,
+                "crop_left": 0,
+                "crop_top": 0,
+                "crop_width": 1,
+                "crop_height": 1,
+            },
+            "{}",
+        )
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/reclassify", params={"model": "claude-opus-4-8"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(mock_identify.call_args.kwargs.get("model"), "claude-opus-4-8")
+
+    def test_reclassify_rejects_unknown_model(self):
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/reclassify", params={"model": "not-a-real-model"}
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.identify_metadata")
     def test_reclassify_vision_error_returns_502(self, mock_identify):
         from comics_importer.errors import VisionAPIError
 
@@ -359,7 +401,7 @@ class TestBackend(unittest.TestCase):
         conn.commit()
         conn.close()
 
-        def fake_success(src_path, *, import_dir, library_dir, conn, client, dry_run):
+        def fake_success(src_path, *, import_dir, library_dir, conn, client, dry_run, model=None):
             content_hash = compute_content_hash(src_path)
             dest = library_dir / "Goofy" / "Goofy #99 (2000).jpg"
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -584,7 +626,7 @@ class TestImportEndpoint(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    def _fake_success(self, src_path, *, import_dir, library_dir, conn, client, dry_run):
+    def _fake_success(self, src_path, *, import_dir, library_dir, conn, client, dry_run, model=None):
         content_hash = compute_content_hash(src_path)
         dest = library_dir / "Goofy" / "Goofy #1 (1990).jpg"
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -618,6 +660,28 @@ class TestImportEndpoint(unittest.TestCase):
 
         # the uploaded staging file should not linger in import/ once processed
         self.assertEqual(list(self.import_dir.glob("*.jpg")), [])
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.process_and_record")
+    def test_import_passes_selected_model(self, mock_process):
+        mock_process.side_effect = self._fake_success
+
+        resp = self.client.post(
+            "/api/import",
+            files={"file": ("photo.jpg", b"fake-image-bytes", "image/jpeg")},
+            data={"model": "claude-opus-4-8"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(mock_process.call_args.kwargs.get("model"), "claude-opus-4-8")
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    def test_import_rejects_unknown_model(self):
+        resp = self.client.post(
+            "/api/import",
+            files={"file": ("photo.jpg", b"fake-image-bytes", "image/jpeg")},
+            data={"model": "not-a-real-model"},
+        )
+        self.assertEqual(resp.status_code, 400)
 
     @patch("backend.main.check_imagemagick_available", lambda: None)
     @patch("backend.main.process_and_record")

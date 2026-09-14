@@ -27,12 +27,28 @@ export default function CropModal(props: CropModalProps) {
     if (!cropper || !props.suggestion) return
     const { naturalWidth, naturalHeight } = cropper.getImageData()
     const { rotation: rot, left, top, width, height } = props.suggestion
+
+    // Claude measures left/top/width/height as fractions of the image's bounding
+    // box AFTER rotating by `rot` (see vision.py's system prompt) - not the
+    // original, unrotated naturalWidth/naturalHeight. Rotating a WxH rectangle by
+    // an angle grows its bounding box to roughly W*|cos| + H*|sin| by
+    // W*|sin| + H*|cos|, so for any non-zero rotation those two frames have
+    // different dimensions. Cropper's setData x/y/width/height are documented as
+    // "rotate the image, then crop" (i.e. also in the rotated frame), so we must
+    // scale by the rotated bounding box, not the original naturalWidth/Height,
+    // or the crop box lands in the wrong place whenever a rotation is suggested.
+    const radians = (rot * Math.PI) / 180
+    const cos = Math.abs(Math.cos(radians))
+    const sin = Math.abs(Math.sin(radians))
+    const rotatedWidth = naturalWidth * cos + naturalHeight * sin
+    const rotatedHeight = naturalWidth * sin + naturalHeight * cos
+
     cropper.setData({
       rotate: rot,
-      x: left * naturalWidth,
-      y: top * naturalHeight,
-      width: width * naturalWidth,
-      height: height * naturalHeight,
+      x: left * rotatedWidth,
+      y: top * rotatedHeight,
+      width: width * rotatedWidth,
+      height: height * rotatedHeight,
     })
     setRotation(rot)
   }
