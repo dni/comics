@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/authContext'
 import RequireAuth from './auth/RequireAuth'
 import AppShell from './components/AppShell'
 import UpdatePrompt from './components/UpdatePrompt'
+import Footer from './components/Footer'
 import Library from './routes/Library'
 import ComicDetail from './routes/ComicDetail'
 import Import from './routes/Import'
@@ -60,6 +61,7 @@ function App() {
         <Route path="/import" component={ProtectedImport} />
         <Route path="/failed" component={ProtectedFailedImports} />
       </Router>
+      <Footer />
     </AuthProvider>
   )
 }

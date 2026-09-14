@@ -6,6 +6,12 @@
 # Digest it reports (likewise for python:3.12-slim and uv:latest below).
 FROM node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS frontend-builder
 
+# passed in by the Makefile's `build` target (git describe) or the release
+# workflow (the pushed tag) - lets the footer show exactly what's deployed,
+# so "did my rebuild actually take?" has a real answer instead of a guess
+ARG GIT_VERSION=dev
+ENV VITE_APP_VERSION=$GIT_VERSION
+
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci

@@ -23,6 +23,22 @@ a {
   color: inherit;
 }
 
+.app-footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: center;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-footer {
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #777;
+  }
+}
+
 h1 {
   margin-bottom: 1rem;
 }

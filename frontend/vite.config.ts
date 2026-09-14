@@ -8,6 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.svg'],
+      // lets `npm run dev` register a real service worker too, so the
+      // update-prompt flow can be exercised without a full Docker rebuild
+      devOptions: { enabled: true, type: 'module' },
       manifest: {
         name: 'Comic Library',
         short_name: 'Comics',

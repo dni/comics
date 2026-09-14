@@ -1,8 +1,9 @@
-.PHONY: all install frontend-install dev dev-frontend test build run
+.PHONY: all install frontend-install dev dev-frontend test build run redeploy
 
 IMAGE_NAME = dni256/comics
 CONTAINER_NAME = comics
 PORT = 8000
+GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 install:
 	uv venv .venv
@@ -24,7 +25,7 @@ dev-frontend:
 	cd frontend && npm run dev
 
 build:
-	docker build --pull -t $(IMAGE_NAME) .
+	docker build --pull --build-arg GIT_VERSION=$(GIT_VERSION) -t $(IMAGE_NAME) .
 
 ENV_FILE := $(wildcard .env)
 
@@ -49,3 +50,8 @@ run:
 		-v $(PWD)/data:/app/data \
 		$(IMAGE_NAME)
 	@echo "Container $(CONTAINER_NAME) is running at http://localhost:$(PORT)"
+
+# `run` alone reuses whatever image is already tagged locally - it will NOT
+# pick up new code on its own. Use this after pulling/making changes so you
+# don't end up staring at a stale build wondering why nothing changed.
+redeploy: build run
