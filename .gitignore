@@ -1,1 +1,25 @@
 dist/*
+
+# comic importer
+import/*
+!import/.gitkeep
+!import/failed/
+import/failed/*
+!import/failed/.gitkeep
+library/*
+!library/.gitkeep
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+__pycache__/
+*.pyc
+.venv/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# docker bind-mount target for `make run` (see Makefile)
+data/

@@ -1,0 +1,23 @@
+# local data - never belongs in the build context (it's bind-mounted at
+# runtime instead, see Makefile's `run` target) and library/ in particular
+# can be hundreds of MB of real comic images
+data/
+import/
+library/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+
+# dependency/build artifacts - reinstalled/rebuilt inside the image itself
+.venv/
+__pycache__/
+*.pyc
+frontend/node_modules/
+frontend/dist/
+
+.git/
+.github/
+.claude/
+tests/
