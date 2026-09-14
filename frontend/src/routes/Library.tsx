@@ -76,6 +76,9 @@ function ComicCard(props: { comic: Comic }) {
       <div class="card-sub">
         {props.comic.year ?? ''} {props.comic.confidence ? `· ${props.comic.confidence}` : ''}
       </div>
+      <Show when={props.comic.numeric_grade != null}>
+        <div class="card-grade-badge">{props.comic.numeric_grade!.toFixed(1)}</div>
+      </Show>
     </A>
   )
 }

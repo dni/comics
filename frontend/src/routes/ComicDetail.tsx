@@ -225,6 +225,7 @@ export default function ComicDetail() {
                 </Show>
               </div>
             </Show>
+          <div class="detail-right-column">
             <form class="detail-form" onSubmit={handleSubmit}>
               <div class="detail-form-header">
                 <Show when={saveError()}>
@@ -330,6 +331,33 @@ export default function ComicDetail() {
                 />
               </label>
 
+              <div class="ebay-actions">
+                <h3>eBay</h3>
+                <a href={ebaySoldSearchUrl(c())} target="_blank" rel="noreferrer" class="secondary-link">
+                  Check sold listings on eBay &rarr;
+                </a>
+
+                <p class="suggested-listing-label">Suggested listing title</p>
+                <div class="copyable">
+                  <input type="text" readonly value={suggestedListingTitle(c())} />
+                  <button type="button" onClick={() => copy(suggestedListingTitle(c()))}>
+                    Copy
+                  </button>
+                </div>
+
+                <p class="suggested-listing-label">Suggested description</p>
+                <div class="copyable">
+                  <textarea readonly value={suggestedListingDescription(c())} />
+                  <button type="button" onClick={() => copy(suggestedListingDescription(c()))}>
+                    Copy
+                  </button>
+                </div>
+
+                <a href="https://www.ebay.com/sl/sell" target="_blank" rel="noreferrer" class="secondary-link">
+                  Open eBay to list this item &rarr;
+                </a>
+              </div>
+
               <fieldset class="for-sale-fieldset">
                 <legend>For sale</legend>
                 <label class="checkbox-label">
@@ -376,36 +404,10 @@ export default function ComicDetail() {
               </fieldset>
             </form>
 
-            <div class="ebay-actions">
-              <h3>eBay</h3>
-              <a href={ebaySoldSearchUrl(c())} target="_blank" rel="noreferrer" class="secondary-link">
-                Check sold listings on eBay &rarr;
-              </a>
-
-              <p class="suggested-listing-label">Suggested listing title</p>
-              <div class="copyable">
-                <input type="text" readonly value={suggestedListingTitle(c())} />
-                <button type="button" onClick={() => copy(suggestedListingTitle(c()))}>
-                  Copy
-                </button>
-              </div>
-
-              <p class="suggested-listing-label">Suggested description</p>
-              <div class="copyable">
-                <textarea readonly value={suggestedListingDescription(c())} />
-                <button type="button" onClick={() => copy(suggestedListingDescription(c()))}>
-                  Copy
-                </button>
-              </div>
-
-              <a href="https://www.ebay.com/sl/sell" target="_blank" rel="noreferrer" class="secondary-link">
-                Open eBay to list this item &rarr;
-              </a>
-            </div>
-
             <p class="meta">
               Imported {c().imported_at} &middot; original file: {c().original_filename}
             </p>
+          </div>
 
             <Show when={fullscreen() && c().image_url}>
               <Lightbox

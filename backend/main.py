@@ -370,7 +370,16 @@ def create_app(
         with dest_path.open("wb") as out:
             shutil.copyfileobj(file.file, out)
 
-        db.update_comic_fields(conn, comic_id, optimized_image_path=str(dest_path))
+        db.update_comic_fields(
+            conn,
+            comic_id,
+            optimized_image_path=str(dest_path),
+            suggested_rotation_degrees=None,
+            suggested_crop_left=None,
+            suggested_crop_top=None,
+            suggested_crop_width=None,
+            suggested_crop_height=None,
+        )
         updated = db.get_comic(conn, comic_id)
         return row_to_out(updated, conn)
 

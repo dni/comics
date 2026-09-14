@@ -108,7 +108,7 @@ export default function Import() {
                   )}
                   {item.result.comic && item.result.comic.duplicate_of.length > 0 && (
                     <div class="import-duplicate-warning">
-                      ⚠ Possible duplicate of{' '}
+                      Already in catalog:{' '}
                       <For each={item.result.comic.duplicate_of}>
                         {(dup, i) => (
                           <>
@@ -116,6 +116,16 @@ export default function Import() {
                             <A href={`/comic/${dup.id}`}>
                               {dup.series} #{dup.issue_number}
                             </A>
+                            {(dup.condition_grade || dup.numeric_grade != null) && (
+                              <span>
+                                {' '}
+                                (
+                                {[dup.condition_grade, dup.numeric_grade != null ? dup.numeric_grade.toFixed(1) : null]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                                )
+                              </span>
+                            )}
                           </>
                         )}
                       </For>

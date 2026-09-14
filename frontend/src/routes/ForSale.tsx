@@ -22,6 +22,12 @@ export default function ForSale() {
   )
 }
 
+function gradeText(c: PublicComic): string {
+  return [c.condition_grade, c.numeric_grade != null ? c.numeric_grade.toFixed(1) : null]
+    .filter(Boolean)
+    .join(' ')
+}
+
 function ForSaleCard(props: { comic: PublicComic }) {
   const c = props.comic
   return (
@@ -33,7 +39,7 @@ function ForSaleCard(props: { comic: PublicComic }) {
         {c.series ?? 'Unknown'} #{c.issue_number ?? '?'}
       </div>
       <div class="card-sub">
-        {c.year ?? ''} {c.condition_grade ? `· ${c.condition_grade}` : ''}
+        {c.year ?? ''} {gradeText(c) ? `· ${gradeText(c)}` : ''}
       </div>
       <Show when={c.asking_price != null}>
         <div class="for-sale-price">${c.asking_price!.toFixed(2)}</div>

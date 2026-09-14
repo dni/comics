@@ -189,6 +189,31 @@ class TestBackend(unittest.TestCase):
         self.assertNotEqual(body["image_url"], original_url)
         self.assertTrue(body["image_url"].startswith(original_url.split("?")[0] + "?v="))
 
+    def test_upload_image_clears_stale_crop_suggestion(self):
+        conn = db.get_connection(self.db_path)
+        db.update_comic_fields(
+            conn,
+            self.comic_id,
+            suggested_rotation_degrees=2.0,
+            suggested_crop_left=0.1,
+            suggested_crop_top=0.1,
+            suggested_crop_width=0.8,
+            suggested_crop_height=0.8,
+        )
+        conn.close()
+
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/image",
+            files={"file": ("cropped.jpg", b"cropped-bytes", "image/jpeg")},
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIsNone(body["suggested_rotation_degrees"])
+        self.assertIsNone(body["suggested_crop_left"])
+        self.assertIsNone(body["suggested_crop_top"])
+        self.assertIsNone(body["suggested_crop_width"])
+        self.assertIsNone(body["suggested_crop_height"])
+
     def test_upload_image_missing_comic_returns_404(self):
         resp = self.client.post(
             "/api/comics/9999/image", files={"file": ("x.jpg", b"data", "image/jpeg")}

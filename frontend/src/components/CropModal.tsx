@@ -1,4 +1,4 @@
-import { onCleanup, onMount } from 'solid-js'
+import { createSignal, onCleanup, onMount } from 'solid-js'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 
@@ -21,17 +21,25 @@ export default function CropModal(props: CropModalProps) {
   let imgRef: HTMLImageElement | undefined
   let cropper: Cropper | undefined
 
+  const [rotation, setRotation] = createSignal(0)
+
   function applySuggestion() {
     if (!cropper || !props.suggestion) return
     const { naturalWidth, naturalHeight } = cropper.getImageData()
-    const { rotation, left, top, width, height } = props.suggestion
+    const { rotation: rot, left, top, width, height } = props.suggestion
     cropper.setData({
-      rotate: rotation,
+      rotate: rot,
       x: left * naturalWidth,
       y: top * naturalHeight,
       width: width * naturalWidth,
       height: height * naturalHeight,
     })
+    setRotation(rot)
+  }
+
+  function syncRotation() {
+    if (!cropper) return
+    setRotation(cropper.getData().rotate)
   }
 
   onMount(() => {
@@ -46,6 +54,7 @@ export default function CropModal(props: CropModalProps) {
       responsive: true,
       background: false,
       ready: () => applySuggestion(),
+      crop: () => syncRotation(),
     })
   })
 
@@ -55,10 +64,17 @@ export default function CropModal(props: CropModalProps) {
 
   function rotate(deg: number) {
     cropper?.rotate(deg)
+    syncRotation()
+  }
+
+  function rotateTo(deg: number) {
+    cropper?.rotateTo(deg)
+    setRotation(deg)
   }
 
   function reset() {
     cropper?.reset()
+    setRotation(0)
   }
 
   function apply() {
@@ -82,13 +98,34 @@ export default function CropModal(props: CropModalProps) {
         <div class="cropper-viewport">
           <img ref={imgRef} src={props.imageUrl} crossorigin="anonymous" />
         </div>
-        <div class="cropper-toolbar">
+        <div class="cropper-rotate-row">
           <button type="button" onClick={() => rotate(-90)}>
             ↺ Rotate left
           </button>
+          <input
+            type="range"
+            min="-180"
+            max="180"
+            step="1"
+            value={rotation()}
+            onInput={(e) => rotateTo(Number(e.currentTarget.value))}
+            class="cropper-rotate-slider"
+          />
+          <input
+            type="number"
+            min="-180"
+            max="180"
+            step="1"
+            value={Math.round(rotation())}
+            onInput={(e) => rotateTo(Number(e.currentTarget.value) || 0)}
+            class="cropper-rotate-degrees"
+          />
+          <span class="cropper-rotate-unit">&deg;</span>
           <button type="button" onClick={() => rotate(90)}>
             ↻ Rotate right
           </button>
+        </div>
+        <div class="cropper-toolbar">
           {props.suggestion && (
             <button type="button" onClick={applySuggestion}>
               Use suggestion
