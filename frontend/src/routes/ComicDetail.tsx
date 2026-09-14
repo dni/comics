@@ -1,6 +1,13 @@
 import { createResource, createSignal, For, Show, createEffect } from 'solid-js'
 import { A, useParams, useNavigate } from '@solidjs/router'
-import { getComic, updateComic, uploadComicImage, reclassifyComic, deleteComic } from '../api'
+import {
+  getComic,
+  updateComic,
+  uploadComicImage,
+  reclassifyComic,
+  deleteComic,
+  describeError,
+} from '../api'
 import type { Comic, ComicUpdate } from '../types'
 import CropModal, { type CropSuggestion } from '../components/CropModal'
 import Lightbox from '../components/Lightbox'
@@ -126,7 +133,7 @@ export default function ComicDetail() {
       await refetch()
       setSavedAt(Date.now())
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : String(err))
+      setSaveError(describeError(err))
     } finally {
       setSaving(false)
     }
@@ -140,7 +147,7 @@ export default function ComicDetail() {
       await refetch()
       setCropping(false)
     } catch (err) {
-      setCropError(err instanceof Error ? err.message : String(err))
+      setCropError(describeError(err))
     } finally {
       setCropSaving(false)
     }
@@ -157,7 +164,7 @@ export default function ComicDetail() {
       await reclassifyComic(comicId(), reclassifyModel() ?? undefined)
       await refetch()
     } catch (err) {
-      setReclassifyError(err instanceof Error ? err.message : String(err))
+      setReclassifyError(describeError(err))
     } finally {
       setReclassifying(false)
     }
@@ -170,7 +177,7 @@ export default function ComicDetail() {
       await deleteComic(comicId())
       navigate('/')
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : String(err))
+      setDeleteError(describeError(err))
       setDeleting(false)
       setConfirmingDelete(false)
     }

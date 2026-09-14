@@ -4,6 +4,7 @@ import { listComics } from '../api'
 import type { Comic } from '../types'
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'updated_at', label: 'Last updated' },
   { value: 'series', label: 'Series' },
   { value: 'issue_number', label: 'Issue' },
   { value: 'year', label: 'Year' },
@@ -13,8 +14,8 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 
 export default function Library() {
   const [query, setQuery] = createSignal('')
-  const [sort, setSort] = createSignal('series')
-  const [order, setOrder] = createSignal<'asc' | 'desc'>('asc')
+  const [sort, setSort] = createSignal('updated_at')
+  const [order, setOrder] = createSignal<'asc' | 'desc'>('desc')
   const [confidence, setConfidence] = createSignal('')
 
   const [comics] = createResource(

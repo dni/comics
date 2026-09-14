@@ -33,7 +33,7 @@ try:
 except ImportError:
     pass
 
-_SORT_COLUMNS = {"series", "issue_number", "year", "confidence", "imported_at"}
+_SORT_COLUMNS = {"series", "issue_number", "year", "confidence", "imported_at", "updated_at"}
 
 
 class DuplicateRef(BaseModel):

@@ -129,7 +129,7 @@ def find_by_hash(conn: sqlite3.Connection, content_hash: str) -> sqlite3.Row | N
     return cur.fetchone()
 
 
-_SORT_COLUMNS = {"series", "issue_number", "year", "confidence", "imported_at"}
+_SORT_COLUMNS = {"series", "issue_number", "year", "confidence", "imported_at", "updated_at"}
 
 _EDITABLE_FIELDS = {
     "series",

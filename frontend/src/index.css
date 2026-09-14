@@ -453,6 +453,19 @@ h1 {
   color: #c0392b;
 }
 
+.import-error-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: normal;
+  text-align: right;
+}
+
+.import-error-row button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .import-item.status-done .import-status {
   color: #2e7d32;
 }

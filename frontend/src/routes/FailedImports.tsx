@@ -1,6 +1,6 @@
 import { createResource, createSignal, For, Show } from 'solid-js'
 import { A } from '@solidjs/router'
-import { listFailed, retryFailed } from '../api'
+import { describeError, listFailed, retryFailed } from '../api'
 import ModelSelect from '../components/ModelSelect'
 import type { ImportResult } from '../types'
 
@@ -25,7 +25,7 @@ export default function FailedImports() {
           status: 'failed',
           filename: '',
           comic: null,
-          error: err instanceof Error ? err.message : String(err),
+          error: describeError(err),
         },
       }))
     } finally {

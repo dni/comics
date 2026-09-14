@@ -51,6 +51,22 @@ async function upload<T>(path: string, formData: FormData): Promise<T> {
 
 export { ApiError }
 
+// The Fetch API throws a generic TypeError when a request never gets a
+// response at all - dropped connection, phone locking mid-request, server
+// briefly unreachable - as opposed to an ApiError, which means the server
+// responded but rejected the request. Worth telling those apart in the UI:
+// a network error is almost always safe to just retry as-is.
+export function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError
+}
+
+export function describeError(err: unknown): string {
+  if (isNetworkError(err)) {
+    return "Couldn't reach the server — check your connection and try again."
+  }
+  return err instanceof Error ? err.message : String(err)
+}
+
 export interface ListParams {
   q?: string
   sort?: string

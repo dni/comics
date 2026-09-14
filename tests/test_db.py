@@ -88,6 +88,22 @@ class TestDb(unittest.TestCase):
         rows = db.list_comics(self.conn, sort_by="series", order="desc")
         self.assertEqual([r["series"] for r in rows], ["Zorro", "Astro Boy"])
 
+    def test_list_comics_sort_by_updated_at(self):
+        first_id = db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg",
+                                    original_path="/x/a.jpg", series="Zorro", status="processed")
+        second_id = db.upsert_comic(self.conn, content_hash="h2", original_filename="b.jpg",
+                                     original_path="/x/b.jpg", series="Astro Boy", status="processed")
+        # set updated_at explicitly (rather than relying on real elapsed time
+        # between the two upserts, which could tie at millisecond precision)
+        # so the smaller-id row is unambiguously the most recently updated -
+        # this only passes if sorting truly uses updated_at, not an id tiebreak
+        self.conn.execute("UPDATE comics SET updated_at = '2030-01-01T00:00:00.000Z' WHERE id = ?", (first_id,))
+        self.conn.execute("UPDATE comics SET updated_at = '2020-01-01T00:00:00.000Z' WHERE id = ?", (second_id,))
+        self.conn.commit()
+
+        rows = db.list_comics(self.conn, sort_by="updated_at", order="desc")
+        self.assertEqual([r["id"] for r in rows], [first_id, second_id])
+
     def test_list_comics_rejects_unknown_sort_column(self):
         db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg", original_path="/x/a.jpg",
                          series="Goofy", status="processed")
