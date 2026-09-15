@@ -122,7 +122,7 @@ export default function CropModal(props: CropModalProps) {
             type="range"
             min="-180"
             max="180"
-            step="1"
+            step="0.1"
             value={rotation()}
             onInput={(e) => rotateTo(Number(e.currentTarget.value))}
             class="cropper-rotate-slider"
@@ -131,8 +131,8 @@ export default function CropModal(props: CropModalProps) {
             type="number"
             min="-180"
             max="180"
-            step="1"
-            value={Math.round(rotation())}
+            step="0.1"
+            value={rotation().toFixed(1)}
             onInput={(e) => rotateTo(Number(e.currentTarget.value) || 0)}
             class="cropper-rotate-degrees"
           />

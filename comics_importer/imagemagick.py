@@ -54,6 +54,30 @@ def make_thumbnail(src_path: Path, thumb_path: Path) -> None:
     _run(thumb_args)
 
 
+def make_crop_thumbnail(src_path: Path, thumb_path: Path) -> None:
+    """A small, contrast-boosted thumbnail for crop/rotation-only vision calls.
+
+    Finding the comic's edges doesn't need legible text, just clear boundaries,
+    so this is deliberately much smaller than make_thumbnail() - fewer vision
+    tokens for the same task. -normalize stretches contrast to the full range,
+    which tends to make the cover's edges against a background stand out more
+    clearly without touching the image's geometry (so it can't skew the crop
+    fractions or rotation angle it produces).
+    """
+    binary = _magick_binary()
+    thumb_path.parent.mkdir(parents=True, exist_ok=True)
+    thumb_args = [
+        binary,
+        str(src_path),
+        "-resize", f"{config.CROP_THUMB_MAX_DIMENSION}x{config.CROP_THUMB_MAX_DIMENSION}>",
+        "-normalize",
+        "-strip",
+        "-quality", str(config.CROP_THUMB_JPEG_QUALITY),
+        str(thumb_path),
+    ]
+    _run(thumb_args)
+
+
 def process_image_with_imagemagick(src_path: Path, optimized_path: Path, thumb_path: Path) -> None:
     binary = _magick_binary()
 

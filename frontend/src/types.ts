@@ -8,6 +8,13 @@ export interface DuplicateRef {
   numeric_grade: number | null
 }
 
+export interface SeriesIssueRef {
+  id: number
+  issue_number: string | null
+  year: number | null
+  image_url: string | null
+}
+
 export interface Comic {
   id: number
   series: string | null
@@ -30,6 +37,7 @@ export interface Comic {
   ebay_listing_url: string | null
   ebay_listing_status: string | null
   duplicate_of: DuplicateRef[]
+  series_issues: SeriesIssueRef[]
   image_url: string | null
   original_filename: string
   imported_at: string

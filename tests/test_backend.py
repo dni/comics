@@ -323,6 +323,207 @@ class TestBackend(unittest.TestCase):
         resp = self.client.post(f"/api/comics/{self.comic_id}/reclassify")
         self.assertEqual(resp.status_code, 502)
 
+    def test_regrade_missing_comic_returns_404(self):
+        resp = self.client.post("/api/comics/9999/regrade")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_regrade_no_image_returns_400(self):
+        conn = db.get_connection(self.db_path)
+        no_image_id = db.upsert_comic(
+            conn, content_hash="h-no-image-2", original_filename="x.jpg",
+            original_path="/import/x.jpg", status="processed",
+        )
+        conn.close()
+        resp = self.client.post(f"/api/comics/{no_image_id}/regrade")
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.assess_grade")
+    def test_regrade_updates_grade_only_leaves_identity_untouched(self, mock_assess):
+        mock_assess.return_value = (
+            {
+                "condition_grade": "Very Fine",
+                "numeric_grade": 8.5,
+                "grading_notes": "Sharp corners, light spine wear.",
+            },
+            '{"numeric_grade": 8.5}',
+        )
+
+        resp = self.client.post(f"/api/comics/{self.comic_id}/regrade")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+
+        # grade fields updated
+        self.assertEqual(body["condition_grade"], "Very Fine")
+        self.assertEqual(body["numeric_grade"], 8.5)
+        self.assertIn("Sharp corners, light spine wear.", body["notes"])
+
+        # identity fields from the fixture are untouched
+        self.assertEqual(body["series"], "Goofy")
+        self.assertEqual(body["issue_number"], "1")
+        self.assertEqual(body["year"], 1990)
+        self.assertEqual(body["publisher"], "Egmont")
+
+        # no rename should happen - series/issue/year never changed
+        self.assertTrue(self.image_path.exists())
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.assess_grade")
+    def test_regrade_appends_to_existing_notes(self, mock_assess):
+        self.client.patch(f"/api/comics/{self.comic_id}", json={"notes": "original identification note"})
+        mock_assess.return_value = (
+            {"condition_grade": "Good", "numeric_grade": 3.0, "grading_notes": "Large tear on cover."},
+            "{}",
+        )
+
+        resp = self.client.post(f"/api/comics/{self.comic_id}/regrade")
+        self.assertEqual(resp.status_code, 200)
+        notes = resp.json()["notes"]
+        self.assertIn("original identification note", notes)
+        self.assertIn("Large tear on cover.", notes)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.assess_grade")
+    def test_regrade_passes_selected_model(self, mock_assess):
+        mock_assess.return_value = (
+            {"condition_grade": None, "numeric_grade": None, "grading_notes": None},
+            "{}",
+        )
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/regrade", params={"model": "claude-opus-4-8"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(mock_assess.call_args.kwargs.get("model"), "claude-opus-4-8")
+
+    def test_regrade_rejects_unknown_model(self):
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/regrade", params={"model": "not-a-real-model"}
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.assess_grade")
+    def test_regrade_vision_error_returns_502(self, mock_assess):
+        from comics_importer.errors import VisionAPIError
+
+        mock_assess.side_effect = VisionAPIError("model refused")
+        resp = self.client.post(f"/api/comics/{self.comic_id}/regrade")
+        self.assertEqual(resp.status_code, 502)
+
+    def test_recrop_missing_comic_returns_404(self):
+        resp = self.client.post("/api/comics/9999/recrop")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_recrop_no_image_returns_400(self):
+        conn = db.get_connection(self.db_path)
+        no_image_id = db.upsert_comic(
+            conn, content_hash="h-no-image-3", original_filename="x.jpg",
+            original_path="/import/x.jpg", status="processed",
+        )
+        conn.close()
+        resp = self.client.post(f"/api/comics/{no_image_id}/recrop")
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_crop_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.estimate_crop")
+    def test_recrop_updates_crop_only_leaves_identity_untouched(self, mock_estimate):
+        mock_estimate.return_value = (
+            {
+                "rotation_degrees": -3.2,
+                "crop_left": 0.05,
+                "crop_top": 0.03,
+                "crop_width": 0.9,
+                "crop_height": 0.94,
+            },
+            "{}",
+        )
+
+        resp = self.client.post(f"/api/comics/{self.comic_id}/recrop")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+
+        self.assertEqual(body["suggested_rotation_degrees"], -3.2)
+        self.assertEqual(body["suggested_crop_left"], 0.05)
+        self.assertEqual(body["suggested_crop_top"], 0.03)
+        self.assertEqual(body["suggested_crop_width"], 0.9)
+        self.assertEqual(body["suggested_crop_height"], 0.94)
+
+        # identity/grade fields from the fixture are untouched
+        self.assertEqual(body["series"], "Goofy")
+        self.assertEqual(body["issue_number"], "1")
+        self.assertTrue(self.image_path.exists())
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_crop_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.estimate_crop")
+    def test_recrop_passes_selected_model(self, mock_estimate):
+        mock_estimate.return_value = (
+            {"rotation_degrees": 0, "crop_left": 0, "crop_top": 0, "crop_width": 1, "crop_height": 1},
+            "{}",
+        )
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/recrop", params={"model": "claude-opus-4-8"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(mock_estimate.call_args.kwargs.get("model"), "claude-opus-4-8")
+
+    def test_recrop_rejects_unknown_model(self):
+        resp = self.client.post(
+            f"/api/comics/{self.comic_id}/recrop", params={"model": "not-a-real-model"}
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    @patch("backend.main.check_imagemagick_available", lambda: None)
+    @patch("backend.main.make_crop_thumbnail", lambda src, dst: dst.write_bytes(b"thumb"))
+    @patch("backend.main.estimate_crop")
+    def test_recrop_vision_error_returns_502(self, mock_estimate):
+        from comics_importer.errors import VisionAPIError
+
+        mock_estimate.side_effect = VisionAPIError("model refused")
+        resp = self.client.post(f"/api/comics/{self.comic_id}/recrop")
+        self.assertEqual(resp.status_code, 502)
+
+    def test_get_comic_reports_series_issues(self):
+        conn = db.get_connection(self.db_path)
+        sibling_id = db.upsert_comic(
+            conn, content_hash="h-sibling", original_filename="sib.jpg",
+            original_path="/import/sib.jpg", series="Goofy", issue_number="2",
+            year=1991, status="processed",
+        )
+        # a different series must not show up
+        db.upsert_comic(
+            conn, content_hash="h-other-series", original_filename="other.jpg",
+            original_path="/import/other.jpg", series="Zorro", issue_number="1",
+            status="processed",
+        )
+        conn.close()
+
+        resp = self.client.get(f"/api/comics/{self.comic_id}")
+        self.assertEqual(resp.status_code, 200)
+        issues = resp.json()["series_issues"]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["id"], sibling_id)
+        self.assertEqual(issues[0]["issue_number"], "2")
+
+    def test_list_comics_does_not_compute_series_issues(self):
+        conn = db.get_connection(self.db_path)
+        db.upsert_comic(
+            conn, content_hash="h-sibling-2", original_filename="sib2.jpg",
+            original_path="/import/sib2.jpg", series="Goofy", issue_number="2",
+            status="processed",
+        )
+        conn.close()
+
+        resp = self.client.get("/api/comics")
+        self.assertEqual(resp.status_code, 200)
+        for comic in resp.json():
+            self.assertEqual(comic["series_issues"], [])
+
     def test_delete_comic_removes_row_and_file(self):
         self.assertTrue(self.image_path.exists())
 

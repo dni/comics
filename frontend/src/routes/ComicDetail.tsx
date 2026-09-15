@@ -5,6 +5,8 @@ import {
   updateComic,
   uploadComicImage,
   reclassifyComic,
+  regradeComic,
+  recropComic,
   deleteComic,
   describeError,
 } from '../api'
@@ -92,6 +94,12 @@ export default function ComicDetail() {
   const [reclassifyError, setReclassifyError] = createSignal<string | null>(null)
   const [reclassifyModel, setReclassifyModel] = createSignal<string | null>(null)
 
+  const [regrading, setRegrading] = createSignal(false)
+  const [regradeError, setRegradeError] = createSignal<string | null>(null)
+
+  const [recropping, setRecropping] = createSignal(false)
+  const [recropError, setRecropError] = createSignal<string | null>(null)
+
   const [confirmingDelete, setConfirmingDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
   const [deleteError, setDeleteError] = createSignal<string | null>(null)
@@ -170,6 +178,35 @@ export default function ComicDetail() {
     }
   }
 
+  async function handleRegrade() {
+    setRegrading(true)
+    setRegradeError(null)
+    try {
+      await regradeComic(comicId(), reclassifyModel() ?? undefined)
+      await refetch()
+    } catch (err) {
+      setRegradeError(describeError(err))
+    } finally {
+      setRegrading(false)
+    }
+  }
+
+  async function handleRecrop() {
+    setRecropping(true)
+    setRecropError(null)
+    try {
+      await recropComic(comicId(), reclassifyModel() ?? undefined)
+      await refetch()
+      // jump straight into the crop editor with the fresh suggestion applied,
+      // rather than leaving the user to notice it landed and open it manually
+      setCropping(true)
+    } catch (err) {
+      setRecropError(describeError(err))
+    } finally {
+      setRecropping(false)
+    }
+  }
+
   async function handleDelete() {
     setDeleting(true)
     setDeleteError(null)
@@ -217,26 +254,67 @@ export default function ComicDetail() {
                   class="detail-image detail-image-clickable"
                   onClick={() => setFullscreen(true)}
                 />
+                <Show when={c().series_issues.length > 0}>
+                  <div class="series-issues-strip">
+                    <For each={c().series_issues}>
+                      {(issue) => (
+                        <A href={`/comic/${issue.id}`} class="series-issue-thumb">
+                          <Show
+                            when={issue.image_url}
+                            fallback={<div class="series-issue-thumb-placeholder" />}
+                          >
+                            <img src={issue.image_url ?? ''} loading="lazy" />
+                          </Show>
+                          <span class="series-issue-number">
+                            #{issue.issue_number ?? '?'}
+                          </span>
+                        </A>
+                      )}
+                    </For>
+                  </div>
+                </Show>
                 <button type="button" class="secondary" onClick={() => setCropping(true)}>
                   Crop / Rotate
                 </button>
+                <ModelSelect
+                  value={reclassifyModel()}
+                  onChange={setReclassifyModel}
+                  disabled={reclassifying() || regrading() || recropping()}
+                />
                 <div class="reclassify-row">
-                  <ModelSelect
-                    value={reclassifyModel()}
-                    onChange={setReclassifyModel}
-                    disabled={reclassifying()}
-                  />
                   <button
                     type="button"
                     class="secondary"
                     onClick={handleReclassify}
-                    disabled={reclassifying()}
+                    disabled={reclassifying() || regrading() || recropping()}
                   >
                     {reclassifying() ? 'Reclassifying...' : 'Reclassify with AI'}
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    onClick={handleRegrade}
+                    disabled={reclassifying() || regrading() || recropping()}
+                  >
+                    {regrading() ? 'Regrading...' : 'Regrade'}
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    onClick={handleRecrop}
+                    disabled={reclassifying() || regrading() || recropping()}
+                  >
+                    {recropping() ? 'Recropping...' : 'Recrop'}
                   </button>
                 </div>
                 <Show when={reclassifyError()}>
                   <p class="error">{reclassifyError()}</p>
+                </Show>
+                <Show when={regradeError()}>
+                  <p class="error">{regradeError()}</p>
+                </Show>
+                <Show when={recropError()}>
+                  <p class="error">{recropError()}</p>
                 </Show>
                 <button type="button" class="danger" onClick={() => setConfirmingDelete(true)}>
                   Delete

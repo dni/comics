@@ -123,6 +123,16 @@ export function reclassifyComic(id: number, model?: string): Promise<Comic> {
   return request<Comic>(`/api/comics/${id}/reclassify${qs}`, { method: 'POST' })
 }
 
+export function regradeComic(id: number, model?: string): Promise<Comic> {
+  const qs = model ? `?${new URLSearchParams({ model }).toString()}` : ''
+  return request<Comic>(`/api/comics/${id}/regrade${qs}`, { method: 'POST' })
+}
+
+export function recropComic(id: number, model?: string): Promise<Comic> {
+  const qs = model ? `?${new URLSearchParams({ model }).toString()}` : ''
+  return request<Comic>(`/api/comics/${id}/recrop${qs}`, { method: 'POST' })
+}
+
 export function importComic(file: File, model?: string): Promise<ImportResult> {
   const formData = new FormData()
   formData.append('file', file)

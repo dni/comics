@@ -104,6 +104,48 @@ class TestDb(unittest.TestCase):
         rows = db.list_comics(self.conn, sort_by="updated_at", order="desc")
         self.assertEqual([r["id"] for r in rows], [first_id, second_id])
 
+    def test_list_series_issues_excludes_self_and_other_series(self):
+        goofy1 = db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg",
+                                  original_path="/x/a.jpg", series="Goofy", issue_number="1",
+                                  status="processed")
+        goofy2 = db.upsert_comic(self.conn, content_hash="h2", original_filename="b.jpg",
+                                  original_path="/x/b.jpg", series="Goofy", issue_number="2",
+                                  status="processed")
+        db.upsert_comic(self.conn, content_hash="h3", original_filename="c.jpg",
+                         original_path="/x/c.jpg", series="Zorro", issue_number="1",
+                         status="processed")
+
+        rows = db.list_series_issues(self.conn, goofy1, "Goofy")
+        self.assertEqual([r["id"] for r in rows], [goofy2])
+
+    def test_list_series_issues_orders_numerically(self):
+        db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg",
+                         original_path="/x/a.jpg", series="Goofy", issue_number="10",
+                         status="processed")
+        db.upsert_comic(self.conn, content_hash="h2", original_filename="b.jpg",
+                         original_path="/x/b.jpg", series="Goofy", issue_number="2",
+                         status="processed")
+        current = db.upsert_comic(self.conn, content_hash="h3", original_filename="c.jpg",
+                                   original_path="/x/c.jpg", series="Goofy", issue_number="1",
+                                   status="processed")
+
+        rows = db.list_series_issues(self.conn, current, "Goofy")
+        # numeric order (2 before 10), not lexicographic ("10" before "2")
+        self.assertEqual([r["issue_number"] for r in rows], ["2", "10"])
+
+    def test_list_series_issues_case_insensitive_and_no_series(self):
+        current = db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg",
+                                   original_path="/x/a.jpg", series="Goofy", issue_number="1",
+                                   status="processed")
+        db.upsert_comic(self.conn, content_hash="h2", original_filename="b.jpg",
+                         original_path="/x/b.jpg", series="GOOFY", issue_number="2",
+                         status="processed")
+
+        rows = db.list_series_issues(self.conn, current, "Goofy")
+        self.assertEqual(len(rows), 1)
+
+        self.assertEqual(db.list_series_issues(self.conn, current, None), [])
+
     def test_list_comics_rejects_unknown_sort_column(self):
         db.upsert_comic(self.conn, content_hash="h1", original_filename="a.jpg", original_path="/x/a.jpg",
                          series="Goofy", status="processed")

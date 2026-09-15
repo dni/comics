@@ -13,7 +13,9 @@ const AppShell: ParentComponent = (props) => {
   return (
     <div>
       <div class="topbar">
-        <span class="topbar-user">{auth.username()}</span>
+        <A href="/" class="topbar-brand">
+          Library
+        </A>
         <div class="topbar-spacer" />
         <nav class="topbar-links" classList={{ open: menuOpen() }}>
           <A href="/failed" onClick={closeMenu}>

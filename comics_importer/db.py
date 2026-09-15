@@ -217,6 +217,22 @@ def find_duplicate_candidates(
     ).fetchall()
 
 
+def list_series_issues(
+    conn: sqlite3.Connection,
+    comic_id: int,
+    series: str | None,
+) -> list[sqlite3.Row]:
+    """Other processed comics in the same series, for cross-issue navigation on the detail page."""
+    if not series:
+        return []
+    return conn.execute(
+        "SELECT id, issue_number, year, optimized_image_path, updated_at FROM comics "
+        "WHERE status = 'processed' AND id != :id AND lower(series) = lower(:series) "
+        "ORDER BY CAST(issue_number AS INTEGER) ASC, issue_number ASC",
+        {"id": comic_id, "series": series},
+    ).fetchall()
+
+
 def list_all_comics_for_export(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM comics WHERE status = 'processed' ORDER BY series ASC, issue_number ASC"

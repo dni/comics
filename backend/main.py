@@ -22,9 +22,9 @@ from backend import auth
 from comics_importer import config, db, naming
 from comics_importer.errors import ImageMagickNotFoundError, VisionAPIError
 from comics_importer.hashing import compute_content_hash
-from comics_importer.imagemagick import check_imagemagick_available, make_thumbnail
+from comics_importer.imagemagick import check_imagemagick_available, make_crop_thumbnail, make_thumbnail
 from comics_importer.pipeline import process_and_record
-from comics_importer.vision import identify_metadata
+from comics_importer.vision import assess_grade, estimate_crop, identify_metadata
 
 try:
     from dotenv import load_dotenv
@@ -44,6 +44,13 @@ class DuplicateRef(BaseModel):
     publisher: Optional[str] = None
     condition_grade: Optional[str] = None
     numeric_grade: Optional[float] = None
+
+
+class SeriesIssueRef(BaseModel):
+    id: int
+    issue_number: Optional[str] = None
+    year: Optional[int] = None
+    image_url: Optional[str] = None
 
 
 class ComicOut(BaseModel):
@@ -68,6 +75,7 @@ class ComicOut(BaseModel):
     ebay_listing_url: Optional[str] = None
     ebay_listing_status: Optional[str] = None
     duplicate_of: list[DuplicateRef] = []
+    series_issues: list[SeriesIssueRef] = []
     image_url: Optional[str] = None
     original_filename: str
     imported_at: str
@@ -195,19 +203,23 @@ def create_app(
         if not request.session.get("user_id"):
             raise HTTPException(status_code=401, detail="Not authenticated")
 
+    def build_image_url(optimized_image_path, updated_at) -> Optional[str]:
+        if not optimized_image_path:
+            return None
+        path = Path(optimized_image_path)
+        try:
+            rel = path.relative_to(app.state.library_dir)
+        except ValueError:
+            rel = path.resolve().relative_to(app.state.library_dir.resolve())
+        # cache-bust: overwriting the file in place (rename or crop) keeps the
+        # same URL path, so a version query param is needed to bypass the browser cache
+        return "/library/" + quote(rel.as_posix(), safe="/") + "?v=" + quote(updated_at, safe="")
+
     def row_to_out(row, conn=None) -> ComicOut:
-        image_url = None
-        if row["optimized_image_path"]:
-            path = Path(row["optimized_image_path"])
-            try:
-                rel = path.relative_to(app.state.library_dir)
-            except ValueError:
-                rel = path.resolve().relative_to(app.state.library_dir.resolve())
-            # cache-bust: overwriting the file in place (rename or crop) keeps the
-            # same URL path, so a version query param is needed to bypass the browser cache
-            image_url = "/library/" + quote(rel.as_posix(), safe="/") + "?v=" + quote(row["updated_at"], safe="")
+        image_url = build_image_url(row["optimized_image_path"], row["updated_at"])
 
         duplicate_of = []
+        series_issues = []
         if conn is not None:
             for dupe in db.find_duplicate_candidates(conn, row["id"], row["series"], row["issue_number"]):
                 duplicate_of.append(
@@ -219,6 +231,15 @@ def create_app(
                         publisher=dupe["publisher"],
                         condition_grade=dupe["condition_grade"],
                         numeric_grade=dupe["numeric_grade"],
+                    )
+                )
+            for sibling in db.list_series_issues(conn, row["id"], row["series"]):
+                series_issues.append(
+                    SeriesIssueRef(
+                        id=sibling["id"],
+                        issue_number=sibling["issue_number"],
+                        year=sibling["year"],
+                        image_url=build_image_url(sibling["optimized_image_path"], sibling["updated_at"]),
                     )
                 )
 
@@ -244,6 +265,7 @@ def create_app(
             ebay_listing_url=row["ebay_listing_url"],
             ebay_listing_status=row["ebay_listing_status"],
             duplicate_of=duplicate_of,
+            series_issues=series_issues,
             image_url=image_url,
             original_filename=row["original_filename"],
             imported_at=row["imported_at"],
@@ -575,6 +597,101 @@ def create_app(
             fields["optimized_image_path"] = new_path
 
         db.update_comic_fields(conn, comic_id, **fields)
+        updated = db.get_comic(conn, comic_id)
+        return row_to_out(updated, conn)
+
+    @app.post(
+        "/api/comics/{comic_id}/regrade",
+        response_model=ComicOut,
+        dependencies=[Depends(require_auth)],
+    )
+    def regrade_comic(comic_id: int, model: Optional[str] = None, conn=Depends(get_db)):
+        row = db.get_comic(conn, comic_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Comic not found")
+        if not row["optimized_image_path"] or not Path(row["optimized_image_path"]).exists():
+            raise HTTPException(status_code=400, detail="This comic has no image to grade")
+
+        resolved_model = resolve_model(model)
+
+        try:
+            check_imagemagick_available()
+        except ImageMagickNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        client = get_anthropic_client()
+
+        # grades the comic's *current* image (post any crop/rotate the user has
+        # since applied) using only the dedicated grading prompt - unlike
+        # reclassify, this never touches series/issue/year/publisher/etc
+        with tempfile.TemporaryDirectory() as work_dir:
+            thumb_path = Path(work_dir) / "thumb.jpg"
+            try:
+                make_thumbnail(Path(row["optimized_image_path"]), thumb_path)
+                grade, raw_json = assess_grade(thumb_path, client, model=resolved_model)
+            except VisionAPIError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        notes = row["notes"]
+        grading_notes = grade.get("grading_notes")
+        if grading_notes:
+            notes = f"{notes}\n[Regrade] {grading_notes}" if notes else f"[Regrade] {grading_notes}"
+
+        db.update_comic_fields(
+            conn,
+            comic_id,
+            condition_grade=grade.get("condition_grade"),
+            numeric_grade=grade.get("numeric_grade"),
+            notes=notes,
+            claude_raw_response=raw_json,
+        )
+        updated = db.get_comic(conn, comic_id)
+        return row_to_out(updated, conn)
+
+    @app.post(
+        "/api/comics/{comic_id}/recrop",
+        response_model=ComicOut,
+        dependencies=[Depends(require_auth)],
+    )
+    def recrop_comic(comic_id: int, model: Optional[str] = None, conn=Depends(get_db)):
+        row = db.get_comic(conn, comic_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Comic not found")
+        if not row["optimized_image_path"] or not Path(row["optimized_image_path"]).exists():
+            raise HTTPException(status_code=400, detail="This comic has no image to crop")
+
+        resolved_model = resolve_model(model)
+
+        try:
+            check_imagemagick_available()
+        except ImageMagickNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        client = get_anthropic_client()
+
+        # re-estimates crop/rotation for the comic's *current* image using the
+        # dedicated crop-only prompt - unlike reclassify, this never touches
+        # series/issue/year/publisher/grade/etc. Uses the smaller, contrast-
+        # boosted crop thumbnail (not make_thumbnail) since this call only
+        # needs to see edges, not legible text - cheaper and just as accurate.
+        with tempfile.TemporaryDirectory() as work_dir:
+            thumb_path = Path(work_dir) / "thumb.jpg"
+            try:
+                make_crop_thumbnail(Path(row["optimized_image_path"]), thumb_path)
+                crop, raw_json = estimate_crop(thumb_path, client, model=resolved_model)
+            except VisionAPIError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        db.update_comic_fields(
+            conn,
+            comic_id,
+            suggested_rotation_degrees=crop.get("rotation_degrees"),
+            suggested_crop_left=crop.get("crop_left"),
+            suggested_crop_top=crop.get("crop_top"),
+            suggested_crop_width=crop.get("crop_width"),
+            suggested_crop_height=crop.get("crop_height"),
+            claude_raw_response=raw_json,
+        )
         updated = db.get_comic(conn, comic_id)
         return row_to_out(updated, conn)
 
